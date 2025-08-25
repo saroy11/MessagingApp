@@ -9,22 +9,29 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow this app to access your photo library to select images.",
+        "NSAppleMusicUsageDescription": "Allow this app to access your files to select documents.",
+        "NSContactsUsageDescription": "Allow this app to access your contacts to display them.",
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UIFileSharingEnabled": true
+      },
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.MessagingApp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.MessagingApp"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-splash-screen",
         {
