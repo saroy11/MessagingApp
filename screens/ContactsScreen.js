@@ -1,7 +1,7 @@
 import * as Contacts from 'expo-contacts';
 import { collection, getDocs } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { firestore } from '../firebase';
 
 // Code for the profile circles
@@ -23,7 +23,7 @@ export default function ContactsScreen({ navigation, route }) {
   const normalizePhone = (phone) => {
     let phoneStr = (phone === null || phone === undefined) ? '' : String(phone).trim();
     if (!phoneStr) {
-      //console.warn('Invalid phone number input:', phone);
+      console.warn('Invalid phone number input:', phone);
       return '';
     }
     let normalized = phoneStr.replace(/[^0-9+]/g, '');
@@ -32,13 +32,12 @@ export default function ContactsScreen({ navigation, route }) {
     } else if (normalized.startsWith('0') && normalized.length === 11) {
       normalized = `+91${normalized.slice(1)}`;
     } else if (!normalized.startsWith('+') && normalized.length > 0) {
-      //console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
+      console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
     }
     if (!normalized) {
       console.warn(`Normalization failed for phone: ${phoneStr}`);
     }
-    //console.log(`Normalized phone: input ${phoneStr} -> output ${normalized}`);
-    return normalized;
+    return { normalized, raw: normalized.replace('+91', '') };
   };
 
   useEffect(() => {
@@ -52,58 +51,67 @@ export default function ContactsScreen({ navigation, route }) {
         const { data } = await Contacts.getContactsAsync({
           fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
         });
-        /*console.log('Raw phone contacts:', data.map(c => ({
-          name: c.name,
-          phone: c.phoneNumbers?.[0]?.number,
-        })));*/
 
         const querySnapshot = await getDocs(collection(firestore, 'users'));
-        const firebaseUsers = querySnapshot.docs
-          .map(doc => {
-            const userData = doc.data();
-            const phone = userData.phone;
-            const normalized = normalizePhone(phone);
-            if (!normalized) {
-              //console.warn(`User ${doc.id} failed normalization, phone: ${phone}, type: ${typeof phone}`);
-              return null;
+        const phoneToProfilePic = {};
+        const registeredPhones = new Set();
+        querySnapshot.docs.forEach(doc => {
+          const userData = doc.data();
+          let phoneKey = null;
+          if (doc.id.length === 10 && doc.id.match(/^\d{10}$/)) {
+            phoneKey = doc.id;
+          }
+          if (userData.phone) {
+            phoneKey = String(userData.phone).replace('+91', '');
+          }
+          if (phoneKey) {
+            registeredPhones.add(phoneKey);
+            if (userData.profilePic) {
+              phoneToProfilePic[phoneKey] = userData.profilePic;
             }
-            //console.log(`Firebase user: ${doc.id}, phone: ${phone}, normalized: ${normalized}`);
-            return {
-              id: doc.id,
-              ...userData,
-              normalizedPhone: normalized,
-            };
-          })
-          .filter(user => user !== null);
+          }
+          console.log('Firebase document:', { id: doc.id, data: userData, phoneKey, profilePic: userData.profilePic });
+        });
 
-        //console.log('Firebase users:', firebaseUsers);
+        console.log('Registered phones:', Array.from(registeredPhones));
+        console.log('Phone to profilePic map:', phoneToProfilePic);
 
         const filteredContacts = data
           .filter(contact => contact.phoneNumbers?.length > 0 && contact.phoneNumbers[0]?.number)
           .map(contact => {
             const rawPhone = contact.phoneNumbers[0].number;
-            const phoneNumber = normalizePhone(rawPhone);
-            if (!phoneNumber) {
-              //console.warn(`Contact ${contact.name || 'Unknown'} has invalid phone number: ${rawPhone}`);
+            const phoneData = normalizePhone(rawPhone);
+            if (!phoneData.normalized) {
+              console.warn(`Contact ${contact.name || 'Unknown'} has invalid phone number: ${rawPhone}`);
               return null;
             }
-            //console.log(`Phone contact: ${contact.name}, raw: ${rawPhone}, normalized: ${phoneNumber}`);
-            const firebaseUser = firebaseUsers.find(user =>
-              user.normalizedPhone === phoneNumber ||
-              user.normalizedPhone.replace('+91', '') === phoneNumber.replace('+91', '')
-            );
+            const rawPhoneKey = phoneData.raw;
+            const isAppUser = registeredPhones.has(rawPhoneKey);
+            const profilePic = isAppUser ? phoneToProfilePic[rawPhoneKey] || null : null;
+            console.log('Contact match:', {
+              contactName: contact.name,
+              contactPhone: phoneData.normalized,
+              rawPhoneKey,
+              isAppUser,
+              profilePic,
+            });
             return {
               id: contact.id,
               name: contact.name || 'Unknown',
-              phone: phoneNumber,
-              isAppUser: !!firebaseUser,
-              firebaseUserId: firebaseUser?.phone || null,
+              phone: phoneData.normalized,
+              isAppUser,
+              firebaseUserId: isAppUser ? phoneData.normalized : null,
+              profilePic,
             };
           })
           .filter(contact => contact !== null && contact.isAppUser);
 
+        console.log('Final contacts:', filteredContacts.map(c => ({
+          name: c.name,
+          phone: c.phone,
+          profilePic: c.profilePic,
+        })));
         setContacts(filteredContacts);
-        //console.log('Fetched contacts:', filteredContacts);
       } catch (err) {
         console.error('Error fetching contacts:', err);
         Alert.alert('Error', 'Failed to fetch contacts: ' + err.message);
@@ -125,13 +133,19 @@ export default function ContactsScreen({ navigation, route }) {
       }}
       style={styles.contactContainer}
     >
-      {/* Profile circle code starts here */}
-      <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(item.name) }]}>
-        <Text style={styles.profilePicText}>
-          {item.name && typeof item.name === 'string' ? item.name.charAt(0).toUpperCase() : ''}
-        </Text>
-      </View>
-      {/* Profile circle code ends here */}
+      {item.profilePic ? (
+        <Image
+          source={{ uri: item.profilePic }}
+          style={styles.profileImage}
+          onError={(e) => console.log(`Failed to load image for ${item.name}: ${item.profilePic}`, e.nativeEvent.error)}
+        />
+      ) : (
+        <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(item.name) }]}>
+          <Text style={styles.profilePicText}>
+            {item.name && typeof item.name === 'string' ? item.name.charAt(0).toUpperCase() : ''}
+          </Text>
+        </View>
+      )}
       <View style={styles.contactDetails}>
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.phone}>{item.phone}</Text>
@@ -143,7 +157,7 @@ export default function ContactsScreen({ navigation, route }) {
     <View style={styles.container}>
       <FlatList
         data={contacts}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id.toString()}
         renderItem={renderItem}
         ListEmptyComponent={<Text style={styles.emptyText}>No registered contacts found</Text>}
       />
@@ -154,13 +168,12 @@ export default function ContactsScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   contactContainer: {
-    flexDirection: 'row', // Make items horizontal
-    alignItems: 'center', // Align items vertically
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#d9d9d9'
+    borderBottomColor: '#d9d9d9',
   },
-  // New styles for the profile circle
   profilePicPlaceholder: {
     width: 50,
     height: 50,
@@ -173,6 +186,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+    backgroundColor: '#f0f0f0',
   },
   contactDetails: { flex: 1 },
   name: { fontWeight: 'bold', fontSize: 16 },
