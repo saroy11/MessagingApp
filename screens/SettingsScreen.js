@@ -1,6 +1,21 @@
+import * as ImagePicker from 'expo-image-picker';
 import { signOut } from 'firebase/auth';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { auth } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { auth, firestore } from '../firebase';
+
+// !!! IMPORTANT: Replace with your actual Cloudinary credentials !!!
+const CLOUDINARY_CLOUD_NAME = 'dy6fcosvb';
+const CLOUDINARY_UPLOAD_PRESET = 'iChatUpload';
 
 // Helper functions for the profile circle (copied from App.js/ChatDetail.js)
 const profileColors = [
@@ -17,6 +32,85 @@ const getRandomColor = (id) => {
 
 export default function SettingsScreen({ route, navigation }) {
   const { userName, myPhone, userEmail } = route.params;
+  const [profilePicUrl, setProfilePicUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchProfilePic = async () => {
+      if (!myPhone) return;
+      const userRef = doc(firestore, 'users', String(myPhone));
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists() && userSnap.data().profilePic) {
+        setProfilePicUrl(userSnap.data().profilePic);
+      }
+    };
+    fetchProfilePic();
+  }, [myPhone]);
+
+  const handleSetProfilePic = async () => {
+    try {
+      if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+        Alert.alert('Configuration Error', 'Please add your Cloudinary credentials to SettingsScreen.js.');
+        return;
+      }
+
+      // 1. Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Please enable media library access in your phone settings to set a profile picture.');
+        return;
+      }
+
+      // 2. Pick an image from the library
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        const imageUri = result.assets[0].uri;
+        setLoading(true);
+
+        // 3. Prepare the image for upload
+        const formData = new FormData();
+        formData.append('file', {
+          uri: imageUri,
+          type: 'image/jpeg', // or whatever the image type is
+          name: `${myPhone}_profile_pic.jpg`,
+        });
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        // 4. Upload the image to Cloudinary
+        const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+        const response = await fetch(cloudinaryUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (data.secure_url) {
+          const newUrl = data.secure_url;
+          setProfilePicUrl(newUrl);
+
+          // 5. Update the user's document in Firestore with the new URL
+          const userRef = doc(firestore, 'users', String(myPhone));
+          await setDoc(userRef, { profilePic: newUrl }, { merge: true });
+
+          Alert.alert('Success', 'Profile picture updated successfully!');
+        } else {
+          Alert.alert('Error', 'Failed to get image URL from Cloudinary. Please try again.');
+          console.error('Cloudinary upload response:', data);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to set profile picture. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -30,12 +124,16 @@ export default function SettingsScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.profileCard}>
-        {/* Profile Circle with User's Initial */}
-        <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(myPhone) }]}>
-          <Text style={styles.profilePicText}>
-            {userName ? userName.charAt(0).toUpperCase() : ''}
-          </Text>
-        </View>
+        {/* Profile Circle or Image */}
+        {profilePicUrl ? (
+          <Image source={{ uri: profilePicUrl }} style={styles.profileImage} />
+        ) : (
+          <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(myPhone) }]}>
+            <Text style={styles.profilePicText}>
+              {userName ? userName.charAt(0).toUpperCase() : ''}
+            </Text>
+          </View>
+        )}
 
         {/* User Name */}
         <Text style={styles.userName}>{userName}</Text>
@@ -45,8 +143,12 @@ export default function SettingsScreen({ route, navigation }) {
         <Text style={styles.infoText}>Email: {userEmail}</Text>
 
         {/* Set Profile Picture Button */}
-        <TouchableOpacity style={styles.setProfileButton}>
-          <Text style={styles.setProfileButtonText}>Set Profile Pic</Text>
+        <TouchableOpacity style={styles.setProfileButton} onPress={handleSetProfilePic} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#007AFF" />
+          ) : (
+            <Text style={styles.setProfileButtonText}>Set Profile Pic</Text>
+          )}
         </TouchableOpacity>
       </View>
       
@@ -88,6 +190,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 48,
     fontWeight: 'bold',
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   userName: {
     fontSize: 24,

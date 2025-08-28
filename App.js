@@ -6,7 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { auth, firestore } from './firebase';
+import { auth, firestore } from './firebase'; // <-- CORRECTED IMPORT PATH
 import ChatDetail from './screens/ChatDetail';
 import ChatPage from './screens/ChatPage';
 import ContactsScreen from './screens/ContactsScreen';
