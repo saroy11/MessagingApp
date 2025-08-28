@@ -23,7 +23,7 @@ export default function ContactsScreen({ navigation, route }) {
   const normalizePhone = (phone) => {
     let phoneStr = (phone === null || phone === undefined) ? '' : String(phone).trim();
     if (!phoneStr) {
-      console.warn('Invalid phone number input:', phone);
+      //console.warn('Invalid phone number input:', phone);
       return '';
     }
     let normalized = phoneStr.replace(/[^0-9+]/g, '');
@@ -32,12 +32,12 @@ export default function ContactsScreen({ navigation, route }) {
     } else if (normalized.startsWith('0') && normalized.length === 11) {
       normalized = `+91${normalized.slice(1)}`;
     } else if (!normalized.startsWith('+') && normalized.length > 0) {
-      console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
+      //console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
     }
     if (!normalized) {
       console.warn(`Normalization failed for phone: ${phoneStr}`);
     }
-    console.log(`Normalized phone: input ${phoneStr} -> output ${normalized}`);
+    //console.log(`Normalized phone: input ${phoneStr} -> output ${normalized}`);
     return normalized;
   };
 
@@ -52,10 +52,10 @@ export default function ContactsScreen({ navigation, route }) {
         const { data } = await Contacts.getContactsAsync({
           fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
         });
-        console.log('Raw phone contacts:', data.map(c => ({
+        /*console.log('Raw phone contacts:', data.map(c => ({
           name: c.name,
           phone: c.phoneNumbers?.[0]?.number,
-        })));
+        })));*/
 
         const querySnapshot = await getDocs(collection(firestore, 'users'));
         const firebaseUsers = querySnapshot.docs
@@ -64,10 +64,10 @@ export default function ContactsScreen({ navigation, route }) {
             const phone = userData.phone;
             const normalized = normalizePhone(phone);
             if (!normalized) {
-              console.warn(`User ${doc.id} failed normalization, phone: ${phone}, type: ${typeof phone}`);
+              //console.warn(`User ${doc.id} failed normalization, phone: ${phone}, type: ${typeof phone}`);
               return null;
             }
-            console.log(`Firebase user: ${doc.id}, phone: ${phone}, normalized: ${normalized}`);
+            //console.log(`Firebase user: ${doc.id}, phone: ${phone}, normalized: ${normalized}`);
             return {
               id: doc.id,
               ...userData,
@@ -76,7 +76,7 @@ export default function ContactsScreen({ navigation, route }) {
           })
           .filter(user => user !== null);
 
-        console.log('Firebase users:', firebaseUsers);
+        //console.log('Firebase users:', firebaseUsers);
 
         const filteredContacts = data
           .filter(contact => contact.phoneNumbers?.length > 0 && contact.phoneNumbers[0]?.number)
@@ -84,10 +84,10 @@ export default function ContactsScreen({ navigation, route }) {
             const rawPhone = contact.phoneNumbers[0].number;
             const phoneNumber = normalizePhone(rawPhone);
             if (!phoneNumber) {
-              console.warn(`Contact ${contact.name || 'Unknown'} has invalid phone number: ${rawPhone}`);
+              //console.warn(`Contact ${contact.name || 'Unknown'} has invalid phone number: ${rawPhone}`);
               return null;
             }
-            console.log(`Phone contact: ${contact.name}, raw: ${rawPhone}, normalized: ${phoneNumber}`);
+            //console.log(`Phone contact: ${contact.name}, raw: ${rawPhone}, normalized: ${phoneNumber}`);
             const firebaseUser = firebaseUsers.find(user =>
               user.normalizedPhone === phoneNumber ||
               user.normalizedPhone.replace('+91', '') === phoneNumber.replace('+91', '')
@@ -103,7 +103,7 @@ export default function ContactsScreen({ navigation, route }) {
           .filter(contact => contact !== null && contact.isAppUser);
 
         setContacts(filteredContacts);
-        console.log('Fetched contacts:', filteredContacts);
+        //console.log('Fetched contacts:', filteredContacts);
       } catch (err) {
         console.error('Error fetching contacts:', err);
         Alert.alert('Error', 'Failed to fetch contacts: ' + err.message);

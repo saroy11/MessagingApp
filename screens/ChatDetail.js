@@ -1,16 +1,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, getDocs, onSnapshot, query, signOut } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query } from 'firebase/firestore';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { auth, firestore } from '../firebase';
+import { firestore } from '../firebase';
 
 const profileColors = [
   '#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A1FF33', '#57FF33',
@@ -49,22 +48,10 @@ export default function ChatDetail({ route, navigation }) {
           <MaterialIcons name="add" size={24} color="white" />
         </TouchableOpacity>
       ),
-      headerRight: () => (
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      ),
+      // Logout button removed from here
+      headerRight: null,
     });
   }, [navigation, myPhone]);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigation.replace('Login');
-    } catch (err) {
-      Alert.alert('Logout Failed', 'Could not log out. Please try again.');
-    }
-  };
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -151,13 +138,6 @@ export default function ChatDetail({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  logoutButton: {
-    marginRight: 15,
-  },
-  logoutText: {
-    color: 'white',
-    fontSize: 16,
-  },
   addContactButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 20,

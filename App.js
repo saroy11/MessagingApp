@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -11,8 +12,10 @@ import ChatPage from './screens/ChatPage';
 import ContactsScreen from './screens/ContactsScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
+import SettingsScreen from './screens/SettingsScreen';
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
 
 const profileColors = [
   '#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A1FF33', '#57FF33',
@@ -25,6 +28,46 @@ const getRandomColor = (id) => {
   const hash = idString.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return profileColors[hash % profileColors.length];
 };
+
+function MainTabs({ route }) {
+  const { myPhone, userName, userEmail } = route.params;
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ color, size }) => {
+          let iconName;
+          if (route.name === 'Chats') {
+            iconName = 'chat';
+          } else if (route.name === 'Settings') {
+            iconName = 'settings';
+          }
+          return <MaterialIcons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: 'gray',
+      })}
+    >
+      <Tab.Screen
+        name="Chats"
+        component={ChatDetail}
+        initialParams={{ myPhone }}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        initialParams={{ myPhone, userName, userEmail }}
+        options={{
+          headerShown: true,
+          headerTitle: 'Settings',
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   const [initializing, setInitializing] = useState(true);
@@ -60,24 +103,26 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName={user && user.myPhone ? 'ChatDetail' : 'Login'} screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen
           name="ChatPage"
           component={ChatPage}
-          options={({ route, navigation }) => ({
+          options={({ navigation }) => ({
             headerShown: true,
-            headerTitle: () => (
-              <View style={styles.headerTitleContainer}>
-                <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(route.params?.userId) }]}>
-                  <Text style={styles.profilePicText}>
-                    {(route.params?.name)?.charAt(0)?.toUpperCase() || 'i'}
-                  </Text>
+            headerTitle: ({ children }) => {
+              const { userId, name } = navigation.getState().routes.find(r => r.name === 'ChatPage')?.params || {};
+              const initial = name ? name.charAt(0).toUpperCase() : '';
+              return (
+                <View style={styles.headerTitleContainer}>
+                  <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(userId) }]}>
+                    <Text style={styles.profilePicText}>{initial}</Text>
+                  </View>
+                  <Text style={styles.headerTitle}>{children}</Text>
                 </View>
-                <Text style={styles.headerTitle}>{route.params?.name || 'Chat'}</Text>
-              </View>
-            ),
+              );
+            },
             headerLeft: () => (
               <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 16 }}>
                 <MaterialIcons name="arrow-back" size={28} color="#007AFF" />
@@ -103,12 +148,9 @@ export default function App() {
           })}
         />
         <Stack.Screen
-          name="ChatDetail"
-          component={ChatDetail}
-          initialParams={{ myPhone: user ? user.myPhone : null }}
-          options={{
-            headerShown: false,
-          }}
+          name="MainTabs"
+          component={MainTabs}
+          initialParams={{ myPhone: user ? user.myPhone : null, userName: user ? user.name : null, userEmail: user ? user.email : null }}
         />
       </Stack.Navigator>
     </NavigationContainer>
@@ -139,7 +181,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   headerTitle: {
-    color: 'black',
+    color: '#000',
     fontSize: 20,
     fontWeight: 'bold',
   },

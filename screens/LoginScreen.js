@@ -11,7 +11,8 @@ export default function LoginScreen({ navigation }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        navigation.replace('ChatDetail', { myPhone: user.phone || phone });
+        // Correctly navigate to MainTabs
+        navigation.replace('MainTabs', { myPhone: user.phone || phone });
       }
     });
     return unsubscribe;
@@ -28,7 +29,8 @@ export default function LoginScreen({ navigation }) {
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
       await signInWithEmailAndPassword(auth, userData.email, password);
-      navigation.replace('ChatDetail', { myPhone: userData.phone });
+      // Correctly navigate to MainTabs
+      navigation.replace('MainTabs', { myPhone: userData.phone });
     } catch (err) {
       console.log(err);
       Alert.alert('Login Failed', err.message || 'Unknown error');
@@ -106,7 +108,7 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 16,
-    color: '#666',
+    color: '#555',
   },
   registerLink: {
     color: '#007AFF',

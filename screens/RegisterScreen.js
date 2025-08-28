@@ -33,7 +33,8 @@ export default function RegisterScreen({ navigation }) {
         name,
         email,
       });
-      navigation.replace('ChatDetail', { myPhone: phone });
+      // Correctly navigate to MainTabs
+      navigation.replace('MainTabs', { myPhone: phone });
     } catch (err) {
       console.log(err);
       Alert.alert('Registration Failed', err.message || 'Unknown error');
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 16,
-    color: '#666',
+    color: '#555',
   },
   loginLink: {
     color: '#007AFF',
