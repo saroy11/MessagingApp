@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { collection, getDocs, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   FlatList,
@@ -61,57 +61,54 @@ export default function ChatDetail({ route, navigation }) {
   useEffect(() => {
     if (!myPhone) return;
 
-    const fetchUsers = async () => {
-      const usersQuery = query(collection(firestore, 'users'));
-      const usersSnapshot = await getDocs(usersQuery);
-      const fetchedUsersMap = {};
-      usersSnapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedUsersMap[normalizePhone(data.phone)] = {
-          name: data.name || data.phone,
-          // Correctly use the profilePic field
-          profilePicUrl: data.profilePic || null,
-        };
-      });
-      setUsersMap(fetchedUsersMap);
-    };
-
-    fetchUsers();
-  }, [myPhone]);
-
-  useEffect(() => {
-    if (!myPhone || Object.keys(usersMap).length === 0) return;
-
     const normalizedMyPhone = normalizePhone(myPhone);
-    const messagesQuery = query(collection(firestore, 'messages'));
-    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const messages = snapshot.docs.map((doc) => doc.data()).filter(
-        (msg) => (normalizePhone(msg.from) === normalizedMyPhone || normalizePhone(msg.chatWith) === normalizedMyPhone)
-      );
 
-      const conversationMap = messages.reduce((accumulator, msg) => {
-        const key = (normalizePhone(msg.from) === normalizedMyPhone) ? normalizePhone(msg.chatWith) : normalizePhone(msg.from);
-        
-        if (!accumulator[key]) {
-          accumulator[key] = {
-            userId: key,
-            name: usersMap[key]?.name || key,
-            profilePicUrl: usersMap[key]?.profilePicUrl || null,
-            lastMessage: '',
-            timestamp: 0,
+    const usersQuery = query(collection(firestore, 'users'));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const fetchedUsersMap = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const normalizedPhone = normalizePhone(data.phone);
+        if (normalizedPhone) {
+          fetchedUsersMap[normalizedPhone] = {
+            name: data.name || data.phone,
+            profilePicUrl: data.profilePic || null,
           };
         }
-        if (msg.createdAt?.seconds > accumulator[key].timestamp) {
-          accumulator[key].lastMessage = msg.text || (msg.attachmentUrl ? `${msg.attachmentType} attachment` : '');
-          accumulator[key].timestamp = msg.createdAt?.seconds || 0;
-        }
-        return accumulator;
-      }, {});
-      setConversations(Object.values(conversationMap).sort((a, b) => b.timestamp - a.timestamp));
+      });
+      setUsersMap(fetchedUsersMap);
+
+      const messagesQuery = query(collection(firestore, 'messages'));
+      const unsubscribeMessages = onSnapshot(messagesQuery, (msgSnapshot) => {
+        const messages = msgSnapshot.docs.map((doc) => doc.data()).filter(
+          (msg) => (normalizePhone(msg.from) === normalizedMyPhone || normalizePhone(msg.chatWith) === normalizedMyPhone)
+        );
+
+        const conversationMap = messages.reduce((accumulator, msg) => {
+          const key = (normalizePhone(msg.from) === normalizedMyPhone) ? normalizePhone(msg.chatWith) : normalizePhone(msg.from);
+          
+          if (!accumulator[key]) {
+            accumulator[key] = {
+              userId: key,
+              name: fetchedUsersMap[key]?.name || key,
+              profilePicUrl: fetchedUsersMap[key]?.profilePicUrl || null,
+              lastMessage: '',
+              timestamp: 0,
+            };
+          }
+          if (msg.createdAt?.seconds > accumulator[key].timestamp) {
+            accumulator[key].lastMessage = msg.text || (msg.attachmentUrl ? `${msg.attachmentType} attachment` : '');
+            accumulator[key].timestamp = msg.createdAt?.seconds || 0;
+          }
+          return accumulator;
+        }, {});
+        setConversations(Object.values(conversationMap).sort((a, b) => b.timestamp - a.timestamp));
+      });
+      return unsubscribeMessages;
     });
 
-    return () => unsubscribe();
-  }, [myPhone, usersMap]);
+    return () => unsubscribeUsers();
+  }, [myPhone]);
 
   const filteredConversations = conversations.filter(conv =>
     conv.name && typeof conv.name === 'string' && conv.name.toLowerCase().includes(searchText.toLowerCase())
@@ -119,7 +116,7 @@ export default function ChatDetail({ route, navigation }) {
 
   const renderConversation = ({ item }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('ChatPage', { userId: item.userId, name: item.name, myPhone })}
+      onPress={() => navigation.navigate('ChatPage', { userId: item.userId, name: item.name, myPhone, profilePicUrl: item.profilePicUrl })}
       style={styles.conversationContainer}
     >
       {item.profilePicUrl ? (

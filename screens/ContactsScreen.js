@@ -126,7 +126,12 @@ export default function ContactsScreen({ navigation, route }) {
       onPress={() => {
         if (item.isAppUser && item.firebaseUserId) {
           navigation.goBack();
-          navigation.navigate('ChatPage', { userId: item.firebaseUserId, name: item.name, myPhone });
+          navigation.navigate('ChatPage', {
+            userId: item.firebaseUserId,
+            name: item.name,
+            myPhone,
+            profilePicUrl: item.profilePic
+          });
         } else {
           Alert.alert('Not Available', `${item.name} is not a registered user.`);
         }

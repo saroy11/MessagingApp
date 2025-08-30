@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { addDoc, collection, getDocs, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, query, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   ActionSheetIOS,
@@ -55,30 +55,15 @@ const getMimeType = (fileName) => {
 };
 
 export default function ChatPage({ route, navigation }) {
-  const { userId, name, myPhone } = route.params;
+  const { userId, name, myPhone, profilePicUrl } = route.params;
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
-  const [profilePicUrl, setProfilePicUrl] = useState(null);
 
   const CLOUDINARY_UPLOAD_PRESET = 'iChatUpload';
   const CLOUDINARY_CLOUD_NAME = 'dy6fcosvb';
-
-  // Fetch the user's profile picture by phone number
-  useEffect(() => {
-    const fetchProfilePic = async () => {
-      // Use a query to find the user document by phone number
-      const usersQuery = query(collection(firestore, 'users'), where('phone', '==', Number(userId)));
-      const usersSnapshot = await getDocs(usersQuery);
-      if (!usersSnapshot.empty) {
-        const userData = usersSnapshot.docs[0].data();
-        setProfilePicUrl(userData.profilePic || null);
-      }
-    };
-    fetchProfilePic();
-  }, [userId]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
