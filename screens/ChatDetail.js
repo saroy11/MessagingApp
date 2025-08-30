@@ -3,11 +3,12 @@ import { collection, getDocs, onSnapshot, query } from 'firebase/firestore';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { firestore } from '../firebase';
 
@@ -21,6 +22,11 @@ const getRandomColor = (id) => {
   const idString = String(id);
   const hash = idString.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return profileColors[hash % profileColors.length];
+};
+
+const normalizePhone = (phone) => {
+  if (!phone) return '';
+  return String(phone).replace(/^\+91/, '').replace(/[^0-9]/g, '');
 };
 
 export default function ChatDetail({ route, navigation }) {
@@ -48,37 +54,49 @@ export default function ChatDetail({ route, navigation }) {
           <MaterialIcons name="add" size={24} color="white" />
         </TouchableOpacity>
       ),
-      // Logout button removed from here
       headerRight: null,
     });
   }, [navigation, myPhone]);
 
   useEffect(() => {
+    if (!myPhone) return;
+
     const fetchUsers = async () => {
-      const querySnapshot = await getDocs(collection(firestore, 'users'));
-      const users = {};
-      querySnapshot.forEach((doc) => {
+      const usersQuery = query(collection(firestore, 'users'));
+      const usersSnapshot = await getDocs(usersQuery);
+      const fetchedUsersMap = {};
+      usersSnapshot.forEach((doc) => {
         const data = doc.data();
-        users[data.phone] = data.name || data.phone;
+        fetchedUsersMap[normalizePhone(data.phone)] = {
+          name: data.name || data.phone,
+          // Correctly use the profilePic field
+          profilePicUrl: data.profilePic || null,
+        };
       });
-      setUsersMap(users);
+      setUsersMap(fetchedUsersMap);
     };
+
     fetchUsers();
-  }, []);
+  }, [myPhone]);
 
   useEffect(() => {
-    if (!myPhone) return;
-    const q = query(collection(firestore, 'messages'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    if (!myPhone || Object.keys(usersMap).length === 0) return;
+
+    const normalizedMyPhone = normalizePhone(myPhone);
+    const messagesQuery = query(collection(firestore, 'messages'));
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const messages = snapshot.docs.map((doc) => doc.data()).filter(
-        (msg) => (msg.from === myPhone || msg.chatWith === myPhone) && msg.chatWith !== ''
+        (msg) => (normalizePhone(msg.from) === normalizedMyPhone || normalizePhone(msg.chatWith) === normalizedMyPhone)
       );
+
       const conversationMap = messages.reduce((accumulator, msg) => {
-        const key = (msg.from === myPhone) ? msg.chatWith : msg.from;
+        const key = (normalizePhone(msg.from) === normalizedMyPhone) ? normalizePhone(msg.chatWith) : normalizePhone(msg.from);
+        
         if (!accumulator[key]) {
           accumulator[key] = {
             userId: key,
-            name: usersMap[key] || key,
+            name: usersMap[key]?.name || key,
+            profilePicUrl: usersMap[key]?.profilePicUrl || null,
             lastMessage: '',
             timestamp: 0,
           };
@@ -91,6 +109,7 @@ export default function ChatDetail({ route, navigation }) {
       }, {});
       setConversations(Object.values(conversationMap).sort((a, b) => b.timestamp - a.timestamp));
     });
+
     return () => unsubscribe();
   }, [myPhone, usersMap]);
 
@@ -103,11 +122,15 @@ export default function ChatDetail({ route, navigation }) {
       onPress={() => navigation.navigate('ChatPage', { userId: item.userId, name: item.name, myPhone })}
       style={styles.conversationContainer}
     >
-      <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(item.userId) }]}>
-        <Text style={styles.profilePicText}>
-          {item.name && typeof item.name === 'string' ? item.name.charAt(0).toUpperCase() : ''}
-        </Text>
-      </View>
+      {item.profilePicUrl ? (
+        <Image source={{ uri: item.profilePicUrl }} style={styles.profileImage} />
+      ) : (
+        <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(item.userId) }]}>
+          <Text style={styles.profilePicText}>
+            {item.name && typeof item.name === 'string' ? item.name.charAt(0).toUpperCase() : ''}
+          </Text>
+        </View>
+      )}
       <View style={styles.conversationContent}>
         <Text style={styles.conversationName}>{item.name}</Text>
         <Text style={styles.conversationMessage}>{item.lastMessage}</Text>
@@ -176,6 +199,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+    backgroundColor: '#f0f0f0',
   },
   conversationContent: { flex: 1 },
   conversationName: { fontWeight: 'bold', fontSize: 16 },

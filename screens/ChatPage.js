@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { addDoc, collection, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import { addDoc, collection, getDocs, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import {
   ActionSheetIOS,
@@ -37,6 +37,12 @@ const getRandomColor = (id) => {
   return profileColors[hash % profileColors.length];
 };
 
+const normalizePhone = (phone) => {
+  if (!phone) return '';
+  // Remove '+91' prefix and any other non-digit characters
+  return String(phone).replace(/^\+91/, '').replace(/[^0-9]/g, '');
+};
+
 const getMimeType = (fileName) => {
   const extension = fileName.split('.').pop().toLowerCase();
   const mimeTypes = {
@@ -55,20 +61,39 @@ export default function ChatPage({ route, navigation }) {
   const [isUploading, setIsUploading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalImageUrl, setModalImageUrl] = useState('');
+  const [profilePicUrl, setProfilePicUrl] = useState(null);
 
   const CLOUDINARY_UPLOAD_PRESET = 'iChatUpload';
   const CLOUDINARY_CLOUD_NAME = 'dy6fcosvb';
+
+  // Fetch the user's profile picture by phone number
+  useEffect(() => {
+    const fetchProfilePic = async () => {
+      // Use a query to find the user document by phone number
+      const usersQuery = query(collection(firestore, 'users'), where('phone', '==', Number(userId)));
+      const usersSnapshot = await getDocs(usersQuery);
+      if (!usersSnapshot.empty) {
+        const userData = usersSnapshot.docs[0].data();
+        setProfilePicUrl(userData.profilePic || null);
+      }
+    };
+    fetchProfilePic();
+  }, [userId]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
       headerTitle: () => (
         <View style={styles.headerTitleContainer}>
-          <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(userId) }]}>
-            <Text style={styles.profilePicText}>
-              {name && typeof name === 'string' ? name.charAt(0).toUpperCase() : ''}
-            </Text>
-          </View>
+          {profilePicUrl ? (
+            <Image source={{ uri: profilePicUrl }} style={styles.profileImage} />
+          ) : (
+            <View style={[styles.profilePicPlaceholder, { backgroundColor: getRandomColor(userId) }]}>
+              <Text style={styles.profilePicText}>
+                {name && typeof name === 'string' ? name.charAt(0).toUpperCase() : ''}
+              </Text>
+            </View>
+          )}
           <Text style={styles.headerTitle}>{name || 'Chat'}</Text>
         </View>
       ),
@@ -81,7 +106,7 @@ export default function ChatPage({ route, navigation }) {
         backgroundColor: 'white',
       },
     });
-  }, [navigation, userId, name]);
+  }, [navigation, userId, name, profilePicUrl]);
 
   const handleAttachment = async () => {
     if (isUploading) return;
@@ -181,8 +206,8 @@ export default function ChatPage({ route, navigation }) {
       const data = await response.json();
       if (!data.secure_url) throw new Error(`Cloudinary upload failed: ${data.error?.message || 'Unknown error'}`);
       await addDoc(collection(firestore, 'messages'), {
-        from: myPhone,
-        chatWith: userId,
+        from: normalizePhone(myPhone),
+        chatWith: normalizePhone(userId),
         text: '',
         attachmentUrl: data.secure_url,
         attachmentType: type,
@@ -199,11 +224,19 @@ export default function ChatPage({ route, navigation }) {
 
   useEffect(() => {
     if (!myPhone || !userId) return;
-    const q = query(collection(firestore, 'messages'), where('chatWith', 'in', [myPhone, userId]), where('from', 'in', [myPhone, userId]));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const normalizedMyPhone = normalizePhone(myPhone);
+    const normalizedUserId = normalizePhone(userId);
+
+    const messagesQuery = query(collection(firestore, 'messages'));
+
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const data = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((msg) => (msg.from === myPhone && msg.chatWith === userId) || (msg.from === userId && msg.chatWith === myPhone))
+        .filter(
+          (msg) =>
+            (normalizePhone(msg.from) === normalizedMyPhone && normalizePhone(msg.chatWith) === normalizedUserId) ||
+            (normalizePhone(msg.from) === normalizedUserId && normalizePhone(msg.chatWith) === normalizedMyPhone)
+        )
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       setMessages(data);
     });
@@ -213,8 +246,8 @@ export default function ChatPage({ route, navigation }) {
   const sendMessage = async () => {
     if (!myPhone || !userId || message.trim().length === 0) return;
     await addDoc(collection(firestore, 'messages'), {
-      from: myPhone,
-      chatWith: userId,
+      from: normalizePhone(myPhone),
+      chatWith: normalizePhone(userId),
       text: message,
       createdAt: serverTimestamp(),
     });
@@ -222,7 +255,7 @@ export default function ChatPage({ route, navigation }) {
   };
 
   const renderMessage = ({ item }) => {
-    const isMe = item.from === myPhone;
+    const isMe = normalizePhone(item.from) === normalizePhone(myPhone);
     const messageStyle = [isMe ? styles.myMessage : styles.otherMessage];
     const textStyle = isMe ? styles.myText : styles.otherText;
 
@@ -341,5 +374,12 @@ const styles = StyleSheet.create({
     color: 'black',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  profileImage: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    marginRight: 10,
+    backgroundColor: '#f0f0f0',
   },
 });

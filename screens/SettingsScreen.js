@@ -17,7 +17,7 @@ import { auth, firestore } from '../firebase';
 const CLOUDINARY_CLOUD_NAME = 'dy6fcosvb';
 const CLOUDINARY_UPLOAD_PRESET = 'iChatUpload';
 
-// Helper functions for the profile circle (copied from App.js/ChatDetail.js)
+// Helper functions for the profile circle
 const profileColors = [
   '#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A1FF33', '#57FF33',
   '#33A1FF', '#FFB533', '#33FFB5', '#B533FF', '#FF336B', '#336BFF',
@@ -37,15 +37,17 @@ export default function SettingsScreen({ route, navigation }) {
 
   useEffect(() => {
     const fetchProfilePic = async () => {
-      if (!myPhone) return;
-      const userRef = doc(firestore, 'users', String(myPhone));
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists() && userSnap.data().profilePic) {
         setProfilePicUrl(userSnap.data().profilePic);
       }
     };
     fetchProfilePic();
-  }, [myPhone]);
+  }, []);
 
   const handleSetProfilePic = async () => {
     try {
@@ -77,12 +79,12 @@ export default function SettingsScreen({ route, navigation }) {
         const formData = new FormData();
         formData.append('file', {
           uri: imageUri,
-          type: 'image/jpeg', // or whatever the image type is
-          name: `${myPhone}_profile_pic.jpg`,
+          type: 'image/jpeg',
+          name: `profile_pic_${Date.now()}.jpg`,
         });
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-        // 4. Upload the image to Cloudinary
+        // 4. Upload to Cloudinary
         const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
         const response = await fetch(cloudinaryUrl, {
           method: 'POST',
@@ -94,9 +96,16 @@ export default function SettingsScreen({ route, navigation }) {
           const newUrl = data.secure_url;
           setProfilePicUrl(newUrl);
 
-          // 5. Update the user's document in Firestore with the new URL
-          const userRef = doc(firestore, 'users', String(myPhone));
+          // 5. Update the logged-in user's Firestore document
+          const user = auth.currentUser;
+          if (!user) {
+            Alert.alert('Error', 'No authenticated user found.');
+            return;
+          }
+
+          const userRef = doc(firestore, "users", auth.currentUser.uid);
           await setDoc(userRef, { profilePic: newUrl }, { merge: true });
+
 
           Alert.alert('Success', 'Profile picture updated successfully!');
         } else {

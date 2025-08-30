@@ -1,8 +1,9 @@
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { addDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth, firestore } from '../firebase';
+
 
 export default function RegisterScreen({ navigation }) {
   const [phone, setPhone] = useState('');
@@ -28,7 +29,8 @@ export default function RegisterScreen({ navigation }) {
       const email = `${phone}@ichat.com`;
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: name });
-      await addDoc(collection(firestore, 'users'), {
+      // Save user with UID as docId
+      await setDoc(doc(firestore, 'users', userCredential.user.uid), {
         phone: Number(phone),
         name,
         email,

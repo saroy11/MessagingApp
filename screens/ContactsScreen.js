@@ -32,10 +32,10 @@ export default function ContactsScreen({ navigation, route }) {
     } else if (normalized.startsWith('0') && normalized.length === 11) {
       normalized = `+91${normalized.slice(1)}`;
     } else if (!normalized.startsWith('+') && normalized.length > 0) {
-      console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
+      //console.warn(`Unexpected phone format, normalizing as-is: ${phoneStr}, result: ${normalized}`);
     }
     if (!normalized) {
-      console.warn(`Normalization failed for phone: ${phoneStr}`);
+      //console.warn(`Normalization failed for phone: ${phoneStr}`);
     }
     return { normalized, raw: normalized.replace('+91', '') };
   };
@@ -70,11 +70,11 @@ export default function ContactsScreen({ navigation, route }) {
               phoneToProfilePic[phoneKey] = userData.profilePic;
             }
           }
-          console.log('Firebase document:', { id: doc.id, data: userData, phoneKey, profilePic: userData.profilePic });
+          //console.log('Firebase document:', { id: doc.id, data: userData, phoneKey, profilePic: userData.profilePic });
         });
 
-        console.log('Registered phones:', Array.from(registeredPhones));
-        console.log('Phone to profilePic map:', phoneToProfilePic);
+        /* console.log('Registered phones:', Array.from(registeredPhones));
+        console.log('Phone to profilePic map:', phoneToProfilePic); */
 
         const filteredContacts = data
           .filter(contact => contact.phoneNumbers?.length > 0 && contact.phoneNumbers[0]?.number)
@@ -88,13 +88,13 @@ export default function ContactsScreen({ navigation, route }) {
             const rawPhoneKey = phoneData.raw;
             const isAppUser = registeredPhones.has(rawPhoneKey);
             const profilePic = isAppUser ? phoneToProfilePic[rawPhoneKey] || null : null;
-            console.log('Contact match:', {
+            /* console.log('Contact match:', {
               contactName: contact.name,
               contactPhone: phoneData.normalized,
               rawPhoneKey,
               isAppUser,
               profilePic,
-            });
+            }); */
             return {
               id: contact.id,
               name: contact.name || 'Unknown',
@@ -106,11 +106,11 @@ export default function ContactsScreen({ navigation, route }) {
           })
           .filter(contact => contact !== null && contact.isAppUser);
 
-        console.log('Final contacts:', filteredContacts.map(c => ({
+        /* console.log('Final contacts:', filteredContacts.map(c => ({
           name: c.name,
           phone: c.phone,
           profilePic: c.profilePic,
-        })));
+        }))); */
         setContacts(filteredContacts);
       } catch (err) {
         console.error('Error fetching contacts:', err);
