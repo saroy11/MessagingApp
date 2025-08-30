@@ -70,48 +70,37 @@ export default function ContactsScreen({ navigation, route }) {
               phoneToProfilePic[phoneKey] = userData.profilePic;
             }
           }
-          //console.log('Firebase document:', { id: doc.id, data: userData, phoneKey, profilePic: userData.profilePic });
         });
 
-        /* console.log('Registered phones:', Array.from(registeredPhones));
-        console.log('Phone to profilePic map:', phoneToProfilePic); */
+        const uniqueContacts = new Map();
+        
+        data.forEach(contact => {
+          if (contact.phoneNumbers?.length > 0) {
+            contact.phoneNumbers.forEach(phone => {
+              const phoneData = normalizePhone(phone.number);
+              if (registeredPhones.has(phoneData.raw) && !uniqueContacts.has(phoneData.normalized)) {
+                const profilePic = phoneToProfilePic[phoneData.raw] || null;
+                uniqueContacts.set(phoneData.normalized, {
+                  id: contact.id,
+                  name: contact.name || 'Unknown',
+                  phone: phoneData.normalized,
+                  isAppUser: true,
+                  firebaseUserId: phoneData.normalized,
+                  profilePic,
+                });
+              }
+            });
+          }
+        });
 
-        const filteredContacts = data
-          .filter(contact => contact.phoneNumbers?.length > 0 && contact.phoneNumbers[0]?.number)
-          .map(contact => {
-            const rawPhone = contact.phoneNumbers[0].number;
-            const phoneData = normalizePhone(rawPhone);
-            if (!phoneData.normalized) {
-              console.warn(`Contact ${contact.name || 'Unknown'} has invalid phone number: ${rawPhone}`);
-              return null;
-            }
-            const rawPhoneKey = phoneData.raw;
-            const isAppUser = registeredPhones.has(rawPhoneKey);
-            const profilePic = isAppUser ? phoneToProfilePic[rawPhoneKey] || null : null;
-            /* console.log('Contact match:', {
-              contactName: contact.name,
-              contactPhone: phoneData.normalized,
-              rawPhoneKey,
-              isAppUser,
-              profilePic,
-            }); */
-            return {
-              id: contact.id,
-              name: contact.name || 'Unknown',
-              phone: phoneData.normalized,
-              isAppUser,
-              firebaseUserId: isAppUser ? phoneData.normalized : null,
-              profilePic,
-            };
-          })
-          .filter(contact => contact !== null && contact.isAppUser);
+        const filteredContacts = Array.from(uniqueContacts.values());
+        
+        // Sort contacts alphabetically
+        const sortedContacts = filteredContacts.sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
 
-        /* console.log('Final contacts:', filteredContacts.map(c => ({
-          name: c.name,
-          phone: c.phone,
-          profilePic: c.profilePic,
-        }))); */
-        setContacts(filteredContacts);
+        setContacts(sortedContacts);
       } catch (err) {
         console.error('Error fetching contacts:', err);
         Alert.alert('Error', 'Failed to fetch contacts: ' + err.message);
