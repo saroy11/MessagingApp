@@ -51,10 +51,14 @@
     <string>Allow this app to access your files to select documents.</string>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Allow this app to access your contacts to display them.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Allow this app to access your photo library to select images.</string>
+    <key>RCTNewArchEnabled</key>
+    <true/>
     <key>UIFileSharingEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>

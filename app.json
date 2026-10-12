@@ -24,7 +24,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.anonymous.MessagingApp"
     },
     "web": {
@@ -33,6 +32,14 @@
     },
     "plugins": [
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2563EB",
+          "defaultChannel": "messages"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -40,10 +47,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+      ],
+      "expo-audio",
+      "expo-asset"
+    ]
   }
 }

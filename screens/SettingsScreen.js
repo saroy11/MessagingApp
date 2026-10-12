@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -8,7 +9,9 @@ import {
   Image,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
+  Switch,
   View,
 } from 'react-native';
 import { auth, firestore } from '../firebase';
@@ -34,6 +37,9 @@ export default function SettingsScreen({ route, navigation }) {
   const { userName, myPhone, userEmail } = route.params;
   const [profilePicUrl, setProfilePicUrl] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [lastSeenEnabled, setLastSeenEnabled] = useState(true);
+  const [blockedPhones, setBlockedPhones] = useState([]);
+  const [blockNumber, setBlockNumber] = useState('');
 
   useEffect(() => {
     const fetchProfilePic = async () => {
@@ -42,12 +48,53 @@ export default function SettingsScreen({ route, navigation }) {
 
       const userRef = doc(firestore, 'users', user.uid);
       const userSnap = await getDoc(userRef);
-      if (userSnap.exists() && userSnap.data().profilePic) {
-        setProfilePicUrl(userSnap.data().profilePic);
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        if (data.profilePic) setProfilePicUrl(data.profilePic);
+        setLastSeenEnabled(data.lastSeenEnabled !== false);
+        setBlockedPhones(data.blockedPhones || []);
       }
     };
     fetchProfilePic();
   }, []);
+
+  const normalizePhone = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  };
+
+  const savePrivacy = async (updates) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await setDoc(doc(firestore, 'users', user.uid), updates, { merge: true });
+    } catch (error) {
+      Alert.alert('Could not save privacy setting', error.message || 'Please try again.');
+    }
+  };
+
+  const toggleLastSeen = (value) => {
+    setLastSeenEnabled(value);
+    savePrivacy({ lastSeenEnabled: value });
+  };
+
+  const blockPhone = () => {
+    const phone = normalizePhone(blockNumber);
+    if (phone.length !== 10 || phone === normalizePhone(myPhone)) {
+      Alert.alert('Enter a valid contact number', 'Use a 10-digit number other than your own.');
+      return;
+    }
+    const updated = [...new Set([...blockedPhones, phone])];
+    setBlockedPhones(updated);
+    setBlockNumber('');
+    savePrivacy({ blockedPhones: updated });
+  };
+
+  const unblockNumber = (phone) => {
+    const updated = blockedPhones.filter((blockedPhone) => blockedPhone !== phone);
+    setBlockedPhones(updated);
+    savePrivacy({ blockedPhones: updated });
+  };
 
   const handleSetProfilePic = async () => {
     try {
@@ -123,9 +170,14 @@ export default function SettingsScreen({ route, navigation }) {
 
   const handleLogout = async () => {
     try {
+      if (!auth.currentUser) {
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       await signOut(auth);
-      navigation.replace('Login');
-    } catch (err) {
+    } catch (_err) {
       Alert.alert('Logout Failed', 'Could not log out. Please try again.');
     }
   };
@@ -145,24 +197,54 @@ export default function SettingsScreen({ route, navigation }) {
         )}
 
         {/* User Name */}
-        <Text style={styles.userName}>{userName}</Text>
+        <Text style={styles.userName}>{userName || 'iChat user'}</Text>
+        <Text style={styles.profileHint}>Your iChat profile</Text>
 
-        {/* User Information */}
-        <Text style={styles.infoText}>Phone: {myPhone}</Text>
-        <Text style={styles.infoText}>Email: {userEmail}</Text>
+        <View style={styles.accountCard}>
+          <View style={styles.infoRow}>
+            <MaterialIcons name="phone" size={19} color="#667085" />
+            <View>
+              <Text style={styles.infoLabel}>PHONE</Text>
+              <Text style={styles.infoText}>{myPhone}</Text>
+            </View>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoRow}>
+            <MaterialIcons name="alternate-email" size={19} color="#667085" />
+            <View>
+              <Text style={styles.infoLabel}>ACCOUNT EMAIL</Text>
+              <Text style={styles.infoText}>{userEmail}</Text>
+            </View>
+          </View>
+        </View>
 
         {/* Set Profile Picture Button */}
         <TouchableOpacity style={styles.setProfileButton} onPress={handleSetProfilePic} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#007AFF" />
           ) : (
-            <Text style={styles.setProfileButtonText}>Set Profile Pic</Text>
+            <><MaterialIcons name="photo-camera" size={18} color="#2563EB" /><Text style={styles.setProfileButtonText}>Change profile photo</Text></>
           )}
         </TouchableOpacity>
+
+        <View style={styles.privacyCard}>
+          <Text style={styles.privacyTitle}>Privacy</Text>
+          <View style={styles.privacyRow}>
+            <View><Text style={styles.privacyRowTitle}>Last seen and online</Text><Text style={styles.privacyHint}>Let people see when you are active.</Text></View>
+            <Switch value={lastSeenEnabled} onValueChange={toggleLastSeen} trackColor={{ false: '#D0D5DD', true: '#93C5FD' }} thumbColor={lastSeenEnabled ? '#2563EB' : '#F9FAFB'} />
+          </View>
+          <Text style={styles.blockTitle}>Blocked contacts</Text>
+          <View style={styles.blockInputRow}>
+            <TextInput value={blockNumber} onChangeText={setBlockNumber} placeholder="Phone number" keyboardType="phone-pad" style={styles.blockInput} />
+            <TouchableOpacity style={styles.blockButton} onPress={blockPhone}><Text style={styles.blockButtonText}>Block</Text></TouchableOpacity>
+          </View>
+          {blockedPhones.map((phone) => <View style={styles.blockedRow} key={phone}><Text style={styles.infoText}>{phone}</Text><TouchableOpacity onPress={() => unblockNumber(phone)}><Text style={styles.unblockText}>Unblock</Text></TouchableOpacity></View>)}
+        </View>
       </View>
       
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+        <MaterialIcons name="logout" size={20} color="#DC2626" />
+        <Text style={styles.logoutButtonText}>Log out</Text>
       </TouchableOpacity>
     </View>
   );
@@ -173,20 +255,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f0f2f5',
-    padding: 24,
+    backgroundColor: '#F3F7FF',
+    padding: 20,
   },
   profileCard: {
     width: '100%',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E7ECF6',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 4,
   },
   profilePicPlaceholder: {
     width: 100,
@@ -194,47 +278,88 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
   },
   profilePicText: {
     color: 'white',
     fontSize: 48,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 2,
+    borderColor: '#E7ECF6',
   },
   userName: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginVertical: 10,
+    fontWeight: '800',
+    marginTop: 14,
+    color: '#111827',
   },
-  infoText: {
-    fontSize: 18,
-    color: '#555',
-    marginBottom: 5,
+  profileHint: { color: '#7D8796', fontSize: 14, marginTop: 4, marginBottom: 20 },
+  accountCard: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E7ECF6',
   },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  infoLabel: { color: '#8A94A3', fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 2 },
+  infoText: { fontSize: 14, color: '#344054' },
+  infoDivider: { height: 1, backgroundColor: '#E8ECF3', marginLeft: 31 },
   setProfileButton: {
-    padding: 10,
-    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C9D8FF',
+    backgroundColor: '#F5F8FF',
   },
+  privacyCard: { width: '100%', marginTop: 18, backgroundColor: '#F8FAFC', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#E7ECF6' },
+  privacyTitle: { color: '#1F2937', fontSize: 16, fontWeight: '800', marginBottom: 12 },
+  privacyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  privacyRowTitle: { color: '#344054', fontSize: 14, fontWeight: '700' },
+  privacyHint: { color: '#7D8796', fontSize: 12, marginTop: 3, maxWidth: 220 },
+  blockTitle: { color: '#344054', fontSize: 14, fontWeight: '700', marginTop: 18, marginBottom: 8 },
+  blockInputRow: { flexDirection: 'row', gap: 8 },
+  blockInput: { flex: 1, height: 42, paddingHorizontal: 10, borderWidth: 1, borderColor: '#DCE3EF', backgroundColor: '#FFFFFF', borderRadius: 10, fontSize: 14 },
+  blockButton: { backgroundColor: '#DC2626', borderRadius: 10, paddingHorizontal: 13, justifyContent: 'center' },
+  blockButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  blockedRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 11 },
+  unblockText: { color: '#2563EB', fontWeight: '700', fontSize: 13 },
   setProfileButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
+    color: '#2563EB',
+    fontSize: 15,
+    fontWeight: '700',
   },
   logoutButton: {
     width: '100%',
-    backgroundColor: '#FF3B30',
-    padding: 18,
-    borderRadius: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFF5F5',
+    padding: 16,
+    borderRadius: 14,
     alignItems: 'center',
     marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   logoutButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#DC2626',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
